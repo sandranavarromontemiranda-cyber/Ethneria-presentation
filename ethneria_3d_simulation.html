@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ETHNERIA Air Logistics — Simulation 3D</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #050a1a; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+
+  #canvas-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; }
+
+  /* === HEADER === */
+  #header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 32px;
+    background: linear-gradient(180deg, rgba(5,10,26,0.95) 0%, transparent 100%);
+  }
+  #logo {
+    font-size: 22px; font-weight: 800; letter-spacing: 3px; color: #fff;
+    text-transform: uppercase;
+  }
+  #logo span { color: #f5a623; }
+  #tagline { font-size: 12px; color: rgba(255,255,255,0.5); letter-spacing: 2px; margin-top: 3px; }
+
+  /* === STEPS === */
+  #steps {
+    position: fixed; top: 90px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 10px; z-index: 100; align-items: center;
+  }
+  .step {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: 30px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.35); font-size: 12px; font-weight: 600;
+    letter-spacing: 1px; transition: all 0.4s ease;
+  }
+  .step.active {
+    background: rgba(245,166,35,0.2); border-color: #f5a623;
+    color: #f5a623; box-shadow: 0 0 20px rgba(245,166,35,0.3);
+  }
+  .step.done {
+    background: rgba(80,200,120,0.15); border-color: #50c878;
+    color: #50c878;
+  }
+  .step-num {
+    width: 20px; height: 20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.1); font-size: 11px; font-weight: 700;
+  }
+  .step.active .step-num { background: #f5a623; color: #000; }
+  .step.done .step-num { background: #50c878; color: #000; }
+  .step-connector {
+    width: 30px; height: 2px; background: rgba(255,255,255,0.1);
+    transition: background 0.4s;
+  }
+  .step-connector.done { background: #50c878; }
+
+  /* === NOTIFICATION CARD === */
+  #notif {
+    position: fixed; top: 160px; right: 30px; z-index: 100;
+    width: 280px; padding: 18px 22px;
+    background: rgba(10,18,40,0.92);
+    border: 1px solid rgba(245,166,35,0.4);
+    border-radius: 16px; backdrop-filter: blur(10px);
+    transform: translateX(320px); transition: transform 0.5s cubic-bezier(0.175,0.885,0.32,1.275);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(245,166,35,0.1);
+  }
+  #notif.show { transform: translateX(0); }
+  #notif-icon { font-size: 28px; margin-bottom: 8px; }
+  #notif-title { font-size: 13px; font-weight: 700; color: #f5a623; letter-spacing: 1px; margin-bottom: 6px; }
+  #notif-text { font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.6; }
+
+  /* === STATS BAR === */
+  #stats {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 2px; z-index: 100;
+    background: rgba(5,10,26,0.8); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 50px; padding: 6px 8px; backdrop-filter: blur(10px);
+  }
+  .stat {
+    padding: 8px 20px; border-radius: 40px;
+    text-align: center; transition: all 0.3s;
+  }
+  .stat-val { font-size: 18px; font-weight: 800; color: #f5a623; }
+  .stat-label { font-size: 9px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-top: 1px; }
+
+  /* === LAUNCH BUTTON === */
+  #launch-btn {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    z-index: 100;
+    padding: 16px 50px; border-radius: 50px; border: none; cursor: pointer;
+    background: linear-gradient(135deg, #f5a623, #e8531d);
+    color: #fff; font-size: 15px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase;
+    box-shadow: 0 4px 30px rgba(245,166,35,0.5);
+    transition: all 0.3s ease;
+  }
+  #launch-btn:hover { transform: translateX(-50%) scale(1.05); box-shadow: 0 6px 40px rgba(245,166,35,0.7); }
+  #launch-btn:disabled { background: linear-gradient(135deg,#333,#555); box-shadow: none; cursor: not-allowed; }
+
+  #replay-btn {
+    position: fixed; bottom: 30px; right: 30px; z-index: 100;
+    padding: 12px 28px; border-radius: 50px; border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.6);
+    font-size: 13px; cursor: pointer; display: none; transition: all 0.3s;
+    backdrop-filter: blur(10px);
+  }
+  #replay-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  #replay-btn.show { display: block; }
+
+  /* === LOCATION LABELS === */
+  #labels { position: fixed; bottom: 160px; left: 0; right: 0; z-index: 100;
+    display: flex; justify-content: space-between; padding: 0 80px; pointer-events: none; }
+  .loc-label {
+    text-align: center; opacity: 0; transition: opacity 0.8s;
+  }
+  .loc-label.show { opacity: 1; }
+  .loc-name { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: rgba(255,255,255,0.5); text-transform: uppercase; }
+  .loc-dot { width: 8px; height: 8px; border-radius: 50%; margin: 6px auto;
+    box-shadow: 0 0 12px currentColor; }
+  .restaurant-dot { background: #f5a623; color: #f5a623; }
+  .hospital-dot { background: #4fc3f7; color: #4fc3f7; }
+
+  /* === PROGRESS BAR === */
+  #progress-bar-wrap {
+    position: fixed; bottom: 0; left: 0; right: 0; height: 3px;
+    background: rgba(255,255,255,0.05); z-index: 100;
+  }
+  #progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg,#f5a623,#e8531d);
+    transition: width 0.3s linear; box-shadow: 0 0 8px #f5a623; }
+
+  /* QR overlay */
+  #qr-overlay {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(0);
+    z-index: 200; background: rgba(5,10,26,0.95);
+    border: 2px solid #f5a623; border-radius: 20px;
+    padding: 30px; text-align: center;
+    transition: transform 0.4s cubic-bezier(0.175,0.885,0.32,1.275);
+  }
+  #qr-overlay.show { transform: translate(-50%,-50%) scale(1); }
+  #qr-code { width: 120px; height: 120px; background: #fff; margin: 16px auto;
+    border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    font-size: 50px; }
+  #qr-title { color: #f5a623; font-weight: 800; font-size: 16px; letter-spacing: 2px; }
+  #qr-sub { color: rgba(255,255,255,0.6); font-size: 12px; margin-top: 8px; }
+  #qr-temp { color: #50c878; font-weight: 700; font-size: 14px; margin-top: 12px; }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<!-- Header -->
+<div id="header">
+  <div>
+    <div id="logo">ETHNER<span>IA</span></div>
+    <div id="tagline">AIR LOGISTICS — SIMULATION 3D INTERACTIVE</div>
+  </div>
+  <div style="text-align:right;">
+    <div style="color:rgba(255,255,255,0.4);font-size:11px;letter-spacing:2px">VENDÔME • FRANCE</div>
+    <div style="color:#f5a623;font-size:12px;font-weight:700;margin-top:4px">🛸 DRONES ACTIFS : 4</div>
+  </div>
+</div>
+
+<!-- Steps -->
+<div id="steps">
+  <div class="step active" id="s1"><div class="step-num">1</div> COMMANDE</div>
+  <div class="step-connector" id="c1"></div>
+  <div class="step" id="s2"><div class="step-num">2</div> DÉCOLLAGE</div>
+  <div class="step-connector" id="c2"></div>
+  <div class="step" id="s3"><div class="step-num">3</div> VOL</div>
+  <div class="step-connector" id="c3"></div>
+  <div class="step" id="s4"><div class="step-num">4</div> LIVRAISON</div>
+</div>
+
+<!-- Notification -->
+<div id="notif">
+  <div id="notif-icon">📱</div>
+  <div id="notif-title">COMMANDE REÇUE</div>
+  <div id="notif-text">Table pour 2 — Brasserie du Centre<br>→ Hub Hôpital de Vendôme</div>
+</div>
+
+<!-- Location labels -->
+<div id="labels">
+  <div class="loc-label" id="lbl-restaurant">
+    <div class="loc-name">Restaurant Partenaire</div>
+    <div class="loc-dot restaurant-dot"></div>
+    <div style="font-size:10px;color:rgba(255,255,255,0.3)">Taquilla de Départ</div>
+  </div>
+  <div class="loc-label" id="lbl-hospital">
+    <div class="loc-name">Hôpital de Vendôme</div>
+    <div class="loc-dot hospital-dot"></div>
+    <div style="font-size:10px;color:rgba(255,255,255,0.3)">Smart Hub ETHNERIA</div>
+  </div>
+</div>
+
+<!-- Stats -->
+<div id="stats">
+  <div class="stat">
+    <div class="stat-val" id="stat-time">00:00</div>
+    <div class="stat-label">TEMPS VOL</div>
+  </div>
+  <div class="stat" style="border-left:1px solid rgba(255,255,255,0.1);border-right:1px solid rgba(255,255,255,0.1);">
+    <div class="stat-val" id="stat-dist">0.0 km</div>
+    <div class="stat-label">DISTANCE</div>
+  </div>
+  <div class="stat" style="border-right:1px solid rgba(255,255,255,0.1);">
+    <div class="stat-val" id="stat-temp">65°C</div>
+    <div class="stat-label">TEMPÉRATURE</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val" id="stat-status" style="font-size:13px;color:#50c878">EN ATTENTE</div>
+    <div class="stat-label">STATUT</div>
+  </div>
+</div>
+
+<!-- Buttons -->
+<button id="launch-btn" onclick="startSimulation()">▶ LANCER LA SIMULATION</button>
+<button id="replay-btn" onclick="resetSimulation()">↺ Rejouer</button>
+
+<!-- QR overlay -->
+<div id="qr-overlay">
+  <div id="qr-title">✅ COMMANDE LIVRÉE</div>
+  <div id="qr-code">⬛</div>
+  <div id="qr-sub">Scannez pour récupérer votre commande</div>
+  <div id="qr-temp">🌡️ Température : 65°C maintenue</div>
+</div>
+
+<!-- Progress -->
+<div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+
+<script>
+// =============================================
+//  THREE.JS SCENE SETUP
+// =============================================
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050a1a);
+scene.fog = new THREE.FogExp2(0x060b1e, 0.018);
+
+const W = window.innerWidth, H = window.innerHeight;
+const camera = new THREE.PerspectiveCamera(55, W/H, 0.1, 500);
+camera.position.set(0, 28, 60);
+camera.lookAt(0, 4, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setSize(W, H);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.9;
+container.appendChild(renderer.domElement);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// =============================================
+//  LIGHTING
+// =============================================
+scene.add(new THREE.AmbientLight(0x0a1a3a, 1.5));
+
+const moonLight = new THREE.DirectionalLight(0x3a5a9a, 0.6);
+moonLight.position.set(-30, 50, 20);
+moonLight.castShadow = true;
+moonLight.shadow.mapSize.set(2048, 2048);
+scene.add(moonLight);
+
+// Street lights
+const streetLightPositions = [[-12,0,-3],[0,0,-3],[12,0,-3],[-18,0,3],[18,0,3]];
+streetLightPositions.forEach(p => {
+  const pl = new THREE.PointLight(0xffcc66, 0.8, 18);
+  pl.position.set(p[0], 5.5, p[2]);
+  scene.add(pl);
+});
+
+// =============================================
+//  GROUND
+// =============================================
+const groundGeo = new THREE.PlaneGeometry(200, 200, 40, 40);
+const groundMat = new THREE.MeshLambertMaterial({ color: 0x0a1020 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Road
+function makeRoad(w, d, x, z) {
+  const road = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, d),
+    new THREE.MeshLambertMaterial({ color: 0x111827 })
+  );
+  road.rotation.x = -Math.PI/2;
+  road.position.set(x, 0.01, z);
+  road.receiveShadow = true;
+  scene.add(road);
+}
+makeRoad(100, 7, 0, 0);  // main road
+makeRoad(7, 60, 0, 0);   // cross road
+
+// =============================================
+//  BUILDING WINDOW TEXTURE
+// =============================================
+function buildWindowTexture(rows, cols, baseColor, winColor) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(0, 0, 256, 512);
+  const cw = 256/cols, ch = 512/rows;
+  for(let r=0; r<rows; r++) {
+    for(let c=0; c<cols; c++) {
+      if(Math.random() > 0.25) {
+        ctx.fillStyle = Math.random()>0.15 ? winColor : '#553311';
+        ctx.fillRect(c*cw+cw*0.15, r*ch+ch*0.12, cw*0.7, ch*0.7);
+      }
+    }
+  }
+  return new THREE.CanvasTexture(canvas);
+}
+
+// =============================================
+//  BUILDING FACTORY
+// =============================================
+function createBuilding(w, h, d, color, x, z, winRows=8, winCols=4) {
+  const group = new THREE.Group();
+  const tex = buildWindowTexture(winRows, winCols, color, '#ffee88');
+  const mat = new THREE.MeshLambertMaterial({ map: tex });
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.y = h/2;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  group.add(mesh);
+  group.position.set(x, 0, z);
+  scene.add(group);
+  return group;
+}
+
+// City buildings (background)
+createBuilding(6, 14, 6, '#1a2535', -32, -8, 10, 3);
+createBuilding(5, 10, 5, '#1e2a3a', -27, 5, 8, 3);
+createBuilding(7, 18, 5, '#162030', -24, -14, 12, 3);
+createBuilding(4, 8, 4,  '#1a2535', -15, -10, 6, 3);
+createBuilding(5, 12, 5, '#1e2a3a', 15, -10, 8, 3);
+createBuilding(6, 16, 5, '#162030', 22, -14, 10, 3);
+createBuilding(4, 9, 4,  '#1a2535', 27, 5, 6, 3);
+createBuilding(5, 11, 5, '#1e2a3a', 30, -8, 8, 3);
+createBuilding(4, 7, 4,  '#162030', -8, -12, 6, 3);
+createBuilding(4, 13, 4, '#1a2535', 8, -12, 9, 3);
+
+// =============================================
+//  RESTAURANT
+// =============================================
+const restaurantGroup = new THREE.Group();
+scene.add(restaurantGroup);
+restaurantGroup.position.set(-22, 0, 2);
+
+// Main building
+const restTex = buildWindowTexture(6, 3, '#2a1a10', '#ffe066');
+const restMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(9, 10, 7),
+  new THREE.MeshLambertMaterial({ map: restTex })
+);
+restMesh.position.y = 5;
+restMesh.castShadow = true;
+restaurantGroup.add(restMesh);
+
+// Warm restaurant light
+const restLight = new THREE.PointLight(0xff9933, 1.5, 15);
+restLight.position.set(0, 6, 4);
+restaurantGroup.add(restLight);
+
+// Sign
+const signGeo = new THREE.BoxGeometry(7, 1.2, 0.2);
+const signMat = new THREE.MeshLambertMaterial({ color: 0xf5a623, emissive: 0xf5a623, emissiveIntensity: 0.8 });
+const sign = new THREE.Mesh(signGeo, signMat);
+sign.position.set(0, 8, 3.6);
+restaurantGroup.add(sign);
+
+// TAQUILLA DE DÉPART (loading platform on roof)
+const padGeo = new THREE.CylinderGeometry(2, 2, 0.15, 16);
+const padMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+const pad = new THREE.Mesh(padGeo, padMat);
+pad.position.set(0, 10.1, 0);
+restaurantGroup.add(pad);
+
+// Landing pad circle (glowing)
+const padRingGeo = new THREE.RingGeometry(1.5, 2, 32);
+const padRingMat = new THREE.MeshBasicMaterial({ color: 0xf5a623, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
+const padRing = new THREE.Mesh(padRingGeo, padRingMat);
+padRing.rotation.x = -Math.PI/2;
+padRing.position.set(0, 10.2, 0);
+restaurantGroup.add(padRing);
+
+// H symbol on pad
+const hGeo = new THREE.BoxGeometry(1.2, 0.05, 0.2);
+const hMat = new THREE.MeshBasicMaterial({ color: 0xf5a623 });
+const hBar = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.05, 1.2), hMat);
+hBar.position.set(0.4, 10.22, 0);
+restaurantGroup.add(hBar);
+const hBar2 = hBar.clone();
+hBar2.position.set(-0.4, 10.22, 0);
+restaurantGroup.add(hBar2);
+const hCross = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.2), hMat);
+hCross.position.set(0, 10.22, 0);
+restaurantGroup.add(hCross);
+
+// =============================================
+//  HOSPITAL
+// =============================================
+const hospitalGroup = new THREE.Group();
+scene.add(hospitalGroup);
+hospitalGroup.position.set(22, 0, 2);
+
+// Main building
+const hospTex = buildWindowTexture(8, 4, '#0d1e2e', '#ccddff');
+const hospMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(12, 15, 8),
+  new THREE.MeshLambertMaterial({ map: hospTex })
+);
+hospMesh.position.y = 7.5;
+hospMesh.castShadow = true;
+hospitalGroup.add(hospMesh);
+
+// Hospital cross
+const crossH = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.4, 0.3),
+  new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xff2222, emissiveIntensity: 1 }));
+crossH.position.set(0, 13, 4.1);
+hospitalGroup.add(crossH);
+const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.5, 0.3),
+  new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xff2222, emissiveIntensity: 1 }));
+crossV.position.set(0, 13, 4.1);
+hospitalGroup.add(crossV);
+
+// Hospital blue light
+const hospLight = new THREE.PointLight(0x4488ff, 1.2, 20);
+hospLight.position.set(0, 8, 5);
+hospitalGroup.add(hospLight);
+
+// =============================================
+//  SMART HUB (at hospital entrance)
+// =============================================
+const hubGroup = new THREE.Group();
+hospitalGroup.add(hubGroup);
+hubGroup.position.set(-3, 0, 5);
+
+// Hub body
+const hubBody = new THREE.Mesh(
+  new THREE.BoxGeometry(3, 2.5, 1.5),
+  new THREE.MeshLambertMaterial({ color: 0x1a1a2e, emissive: 0x001133, emissiveIntensity: 0.5 })
+);
+hubBody.position.y = 1.25;
+hubGroup.add(hubBody);
+
+// Hub screen glow
+const hubScreen = new THREE.Mesh(
+  new THREE.PlaneGeometry(2.2, 1.6),
+  new THREE.MeshBasicMaterial({ color: 0x1155ff, transparent: true, opacity: 0.8 })
+);
+hubScreen.position.set(0, 1.5, 0.76);
+hubGroup.add(hubScreen);
+
+// Hub landing pad (top)
+const hubPad = new THREE.Mesh(
+  new THREE.CylinderGeometry(1.2, 1.2, 0.1, 16),
+  new THREE.MeshLambertMaterial({ color: 0x111111 })
+);
+hubPad.position.y = 2.55;
+hubGroup.add(hubPad);
+
+const hubRing = new THREE.Mesh(
+  new THREE.RingGeometry(0.8, 1.2, 32),
+  new THREE.MeshBasicMaterial({ color: 0x4fc3f7, side: THREE.DoubleSide, transparent: true, opacity: 0.8 })
+);
+hubRing.rotation.x = -Math.PI/2;
+hubRing.position.y = 2.61;
+hubGroup.add(hubRing);
+
+// Pulsing light on hub
+const hubLight = new THREE.PointLight(0x4fc3f7, 0, 8);
+hubLight.position.set(0, 3, 0);
+hubGroup.add(hubLight);
+
+// =============================================
+//  DRONE
+// =============================================
+const droneGroup = new THREE.Group();
+scene.add(droneGroup);
+
+// Drone body
+const bodyMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a, emissive: 0x050505 });
+const droneBody = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.4, 1.6), bodyMat);
+droneGroup.add(droneBody);
+
+// Thermal cargo container
+const containerMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2a, emissive: 0x331100, emissiveIntensity: 0.3 });
+const container3d = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 1.2), containerMat);
+container3d.position.y = -0.45;
+droneGroup.add(container3d);
+
+// ETHNERIA label glow on container
+const labelGeo = new THREE.PlaneGeometry(0.9, 0.15);
+const labelMat = new THREE.MeshBasicMaterial({ color: 0xf5a623, transparent: true, opacity: 0.9 });
+const droneLabel = new THREE.Mesh(labelGeo, labelMat);
+droneLabel.position.set(0, -0.45, 0.62);
+droneGroup.add(droneLabel);
+
+// Arms (4)
+const armMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+const armPositions = [[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1]];
+armPositions.forEach(([ax,ay,az]) => {
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.12, 0.18), armMat);
+  arm.position.set(ax*0.8, 0, az*0.8);
+  arm.rotation.y = Math.atan2(ax, az);
+  droneGroup.add(arm);
+});
+
+// Rotors (4 spinning discs)
+const rotorMat = new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+const rotors = [];
+const motorMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+armPositions.forEach(([ax,ay,az]) => {
+  const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.25, 8), motorMat);
+  motor.position.set(ax*1.55, 0.15, az*1.55);
+  droneGroup.add(motor);
+
+  const rotor = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.04, 16), rotorMat);
+  rotor.position.set(ax*1.55, 0.28, az*1.55);
+  droneGroup.add(rotor);
+  rotors.push(rotor);
+
+  // LED at arm tip
+  const led = new THREE.Mesh(
+    new THREE.SphereGeometry(0.1, 8, 8),
+    new THREE.MeshBasicMaterial({ color: ([ax,az]==[1,1]||[ax,az]==[-1,-1]) ? 0xff2222 : 0x22ff22 })
+  );
+  led.position.set(ax*1.55, 0.2, az*1.55);
+  droneGroup.add(led);
+});
+
+// Drone light (orange from below)
+const droneLight = new THREE.PointLight(0xf5a623, 0, 10);
+droneGroup.add(droneLight);
+
+// Start drone at restaurant roof
+droneGroup.position.set(-22, 10.5, 2);
+
+// =============================================
+//  FLIGHT PATH
+// =============================================
+const startPos = new THREE.Vector3(-22, 10.8, 2);
+const endPos   = new THREE.Vector3(22-3, 2.7 + 2.55, 2+5);
+
+const curve = new THREE.CubicBezierCurve3(
+  startPos,
+  new THREE.Vector3(-8, 24, -2),
+  new THREE.Vector3(8, 24, -2),
+  endPos
+);
+
+// Trail particles
+const trailPositions = new Float32Array(150 * 3);
+const trailGeo = new THREE.BufferGeometry();
+trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+const trailMat = new THREE.PointsMaterial({
+  color: 0xf5a623, size: 0.25, transparent: true, opacity: 0.7,
+  sizeAttenuation: true
+});
+const trail = new THREE.Points(trailGeo, trailMat);
+scene.add(trail);
+let trailIndex = 0;
+const trailHistory = [];
+
+// Flight path line (drawn as drone moves)
+const pathPoints = curve.getPoints(80);
+const pathGeo = new THREE.BufferGeometry().setFromPoints(pathPoints.slice(0,1));
+const pathMat = new THREE.LineBasicMaterial({ color: 0xf5a623, transparent: true, opacity: 0.25 });
+const pathLine = new THREE.Line(pathGeo, pathMat);
+scene.add(pathLine);
+
+// =============================================
+//  STARS
+// =============================================
+const starGeo = new THREE.BufferGeometry();
+const starVerts = [];
+for(let i=0; i<1200; i++) {
+  starVerts.push(
+    (Math.random()-0.5)*300,
+    Math.random()*120+10,
+    (Math.random()-0.5)*300
+  );
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(starVerts), 3));
+scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.3, sizeAttenuation: true })));
+
+// =============================================
+//  SIMULATION STATE
+// =============================================
+let simState = 'idle'; // idle, running, done
+let simProgress = 0;   // 0 to 1
+let simStart = null;
+const SIM_DURATION = 9000; // ms
+
+// Camera targets
+let camTarget = { x: 0, y: 28, z: 60, lx: 0, ly: 4, lz: 0 };
+let camCurrent = { x: 0, y: 28, z: 60, lx: 0, ly: 4, lz: 0 };
+
+function lerpCam(a, b, t) { return a + (b-a)*t; }
+
+// Step UI helpers
+function setStep(n) {
+  [1,2,3,4].forEach(i => {
+    const el = document.getElementById('s'+i);
+    el.className = 'step' + (i<n?' done':i===n?' active':'');
+    if(i<n) document.getElementById('c'+i)?.classList.add('done');
+  });
+}
+
+function showNotif(icon, title, text) {
+  document.getElementById('notif-icon').textContent = icon;
+  document.getElementById('notif-title').textContent = title;
+  document.getElementById('notif-text').textContent = text;
+  document.getElementById('notif').classList.add('show');
+  setTimeout(() => document.getElementById('notif').classList.remove('show'), 3200);
+}
+
+// Elapsed timer
+let elapsed = 0;
+let lastTime = null;
+
+function startSimulation() {
+  if(simState === 'running') return;
+  simState = 'running';
+  simProgress = 0;
+  simStart = null;
+  trailHistory.length = 0;
+  document.getElementById('launch-btn').disabled = true;
+  document.getElementById('launch-btn').textContent = '🛸 SIMULATION EN COURS...';
+  document.getElementById('replay-btn').classList.remove('show');
+  document.getElementById('qr-overlay').classList.remove('show');
+  document.getElementById('lbl-restaurant').classList.add('show');
+  document.getElementById('lbl-hospital').classList.add('show');
+  document.getElementById('stat-status').textContent = 'EN VOL';
+  document.getElementById('stat-status').style.color = '#f5a623';
+
+  // Notif: order received
+  setTimeout(() => showNotif('📱', 'COMMANDE REÇUE', 'Brasserie du Centre → Hub Hôpital\nPréparation en cours...'), 600);
+  setTimeout(() => showNotif('🛸', 'DRONE ACTIVÉ', 'Rotor OK · Cargo thermique verrouillé\nDécollage dans 3 secondes'), 2800);
+  setTimeout(() => {
+    setStep(3);
+    showNotif('🚀', 'EN ROUTE !', 'Distance : 2.3 km · Temps estimé : 10 min\nTempérature cargo : 65°C');
+  }, 4200);
+  setTimeout(() => {
+    setStep(4);
+    showNotif('✅', 'LIVRAISON CONFIRMÉE', 'Commande déposée au Smart Hub\nScannez votre QR code !');
+    document.getElementById('qr-overlay').classList.add('show');
+    setTimeout(() => document.getElementById('qr-overlay').classList.remove('show'), 3000);
+  }, 7800);
+
+  setStep(1);
+  setTimeout(() => setStep(2), 2500);
+}
+
+function resetSimulation() {
+  simState = 'idle';
+  simProgress = 0;
+  elapsed = 0;
+  droneGroup.position.copy(startPos);
+  droneGroup.rotation.set(0,0,0);
+  droneLight.intensity = 0;
+  hubLight.intensity = 0;
+  trailHistory.length = 0;
+  document.getElementById('launch-btn').disabled = false;
+  document.getElementById('launch-btn').textContent = '▶ LANCER LA SIMULATION';
+  document.getElementById('replay-btn').classList.remove('show');
+  document.getElementById('qr-overlay').classList.remove('show');
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('stat-time').textContent = '00:00';
+  document.getElementById('stat-dist').textContent = '0.0 km';
+  document.getElementById('stat-status').textContent = 'EN ATTENTE';
+  document.getElementById('stat-status').style.color = '#50c878';
+  setStep(1);
+  camTarget = { x: 0, y: 28, z: 60, lx: 0, ly: 4, lz: 0 };
+}
+
+// =============================================
+//  ANIMATION LOOP
+// =============================================
+let frameCount = 0;
+function animate(now) {
+  requestAnimationFrame(animate);
+  frameCount++;
+
+  const dt = lastTime ? (now - lastTime) : 16;
+  lastTime = now;
+
+  // Rotate rotors always (when sim running)
+  const rotorSpeed = simState==='running' && simProgress>0.05 && simProgress<0.97 ? 0.4 : (simState==='running' && simProgress<=0.05 ? simProgress*8 : 0);
+  rotors.forEach((r,i) => r.rotation.y += (i%2===0?1:-1) * rotorSpeed);
+
+  // Animate pad rings
+  padRing.material.opacity = 0.4 + 0.3*Math.sin(now*0.003);
+  hubRing.material.opacity = 0.5 + 0.3*Math.sin(now*0.003 + Math.PI);
+
+  // Animate hub pulsing when drone approaching
+  if(simState==='running' && simProgress > 0.7) {
+    hubLight.intensity = (simProgress-0.7)*10 * (0.6 + 0.4*Math.sin(now*0.006));
+  }
+
+  // Restaurant warm flicker
+  restLight.intensity = 1.4 + 0.1*Math.sin(now*0.002 + 1);
+
+  // === SIMULATION ===
+  if(simState === 'running') {
+    if(!simStart) simStart = now;
+    simProgress = Math.min((now - simStart) / SIM_DURATION, 1);
+    elapsed = now - simStart;
+
+    // Progress bar
+    document.getElementById('progress-bar').style.width = (simProgress*100)+'%';
+
+    // Stats
+    const secs = Math.floor(elapsed/1000);
+    const mins = Math.floor(secs/60);
+    document.getElementById('stat-time').textContent =
+      String(mins).padStart(2,'0')+':'+String(secs%60).padStart(2,'0');
+    document.getElementById('stat-dist').textContent = (simProgress * 2.3).toFixed(1)+' km';
+
+    // --- Phase 1: Spin up (0 → 0.12) ---
+    if(simProgress < 0.12) {
+      droneLight.intensity = simProgress * 8;
+      // Hover gently at start
+      droneGroup.position.copy(startPos);
+      droneGroup.position.y += Math.sin(simProgress*50)*0.05;
+
+      camTarget = { x: -22, y: 16, z: 20, lx: -22, ly: 10, lz: 2 };
+    }
+    // --- Phase 2: Takeoff (0.12 → 0.25) ---
+    else if(simProgress < 0.25) {
+      const t = (simProgress - 0.12) / 0.13;
+      droneGroup.position.set(
+        startPos.x, startPos.y + t * 6, startPos.z
+      );
+      droneGroup.rotation.x = -0.1 * t;
+      droneLight.intensity = 1.5;
+      camTarget = { x: -18, y: 22, z: 25, lx: -18, ly: 12, lz: 2 };
+    }
+    // --- Phase 3: Flight (0.25 → 0.88) ---
+    else if(simProgress < 0.88) {
+      const t = (simProgress - 0.25) / 0.63;
+      const pt = curve.getPoint(t);
+      droneGroup.position.copy(pt);
+      droneLight.intensity = 1.5;
+
+      // Tilt forward in direction of movement
+      const tang = curve.getTangent(t);
+      droneGroup.rotation.y = Math.atan2(tang.x, tang.z);
+      droneGroup.rotation.x = Math.atan2(tang.y, Math.sqrt(tang.x*tang.x+tang.z*tang.z)) * -0.6;
+
+      // Hover wobble
+      droneGroup.position.y += Math.sin(now*0.004)*0.15;
+
+      // Trail
+      trailHistory.push(pt.clone());
+      if(trailHistory.length > 60) trailHistory.shift();
+      const trailPos = trailGeo.attributes.position.array;
+      for(let i=0; i<trailHistory.length; i++) {
+        trailPos[i*3] = trailHistory[i].x;
+        trailPos[i*3+1] = trailHistory[i].y;
+        trailPos[i*3+2] = trailHistory[i].z;
+      }
+      trailGeo.attributes.position.needsUpdate = true;
+      trailGeo.setDrawRange(0, trailHistory.length);
+      trailMat.opacity = 0.5 + Math.sin(now*0.004)*0.2;
+
+      // Path line grows
+      const numDrawn = Math.floor(t * 80);
+      pathGeo.setFromPoints(pathPoints.slice(0, numDrawn+1));
+      pathLine.geometry = pathGeo;
+
+      // Camera follows drone
+      camTarget = {
+        x: pt.x + 6*Math.sin(now*0.0003),
+        y: pt.y + 12,
+        z: pt.z + 22,
+        lx: pt.x, ly: pt.y, lz: pt.z
+      };
+    }
+    // --- Phase 4: Landing (0.88 → 1.0) ---
+    else {
+      const t = (simProgress - 0.88) / 0.12;
+      const lerpPos = new THREE.Vector3().lerpVectors(
+        curve.getPoint(1), endPos, t
+      );
+      droneGroup.position.copy(lerpPos);
+      droneGroup.rotation.x = lerpVec(droneGroup.rotation.x, 0, 0.08);
+      droneGroup.rotation.y = lerpVec(droneGroup.rotation.y, Math.PI, 0.06);
+      droneLight.intensity = 1.5 - t;
+
+      camTarget = { x: 20, y: 14, z: 22, lx: 20, ly: 5, lz: 8 };
+
+      if(simProgress >= 1) {
+        simState = 'done';
+        document.getElementById('stat-status').textContent = 'LIVRÉ ✅';
+        document.getElementById('stat-status').style.color = '#50c878';
+        document.getElementById('launch-btn').disabled = false;
+        document.getElementById('launch-btn').textContent = '✅ LIVRAISON COMPLÈTE';
+        document.getElementById('replay-btn').classList.add('show');
+        droneLight.intensity = 0;
+        trailHistory.length = 0;
+      }
+    }
+  }
+
+  // Smooth camera
+  const s = 0.025;
+  camCurrent.x = lerpVec(camCurrent.x, camTarget.x, s);
+  camCurrent.y = lerpVec(camCurrent.y, camTarget.y, s);
+  camCurrent.z = lerpVec(camCurrent.z, camTarget.z, s);
+  camCurrent.lx = lerpVec(camCurrent.lx, camTarget.lx, s);
+  camCurrent.ly = lerpVec(camCurrent.ly, camTarget.ly, s);
+  camCurrent.lz = lerpVec(camCurrent.lz, camTarget.lz, s);
+
+  // Idle camera gentle rotation
+  if(simState === 'idle') {
+    const t = now * 0.0002;
+    camCurrent.x = Math.sin(t) * 5;
+    camCurrent.z = 55 + Math.cos(t*0.7)*5;
+    camCurrent.y = 28 + Math.sin(t*0.5)*2;
+  }
+
+  camera.position.set(camCurrent.x, camCurrent.y, camCurrent.z);
+  camera.lookAt(camCurrent.lx, camCurrent.ly, camCurrent.lz);
+
+  renderer.render(scene, camera);
+}
+
+function lerpVec(a, b, t) { return a + (b-a)*t; }
+
+animate(0);
+</script>
+</body>
+</html>
